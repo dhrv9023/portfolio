@@ -1,0 +1,1 @@
+(function(d){try{var m=window.matchMedia,c=navigator.connection,s=(m&&(m('(prefers-reduced-motion: reduce)').matches||m('(prefers-reduced-data: reduce)').matches))||(c&&c.saveData);d.setAttribute('data-motion',s?'static':'full')}catch(e){d.setAttribute('data-motion','static')}})(document.documentElement);

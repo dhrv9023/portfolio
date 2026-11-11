@@ -1,0 +1,38 @@
+{
+  "name": "dhruv-sehgal-portfolio",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run build:client && npm run build:ssr && node scripts/prerender.mjs && node scripts/check-budgets.mjs && node scripts/check-verify.mjs",
+    "build:client": "vite build",
+    "build:ssr": "vite build --ssr src/entries/server.tsx",
+    "build:release": "SITE_RELEASE=1 npm run build",
+    "preview": "vite preview --port 4173 --strictPort",
+    "probe:serve": "vite --host --port 5173",
+    "typecheck": "tsc --noEmit",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "test": "npm run typecheck && npm run check:boundaries && vitest run",
+    "test:e2e": "npm run build && playwright test"
+  },
+  "dependencies": {
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0",
+    "@tailwindcss/vite": "4.3.5",
+    "@types/node": "26.6.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.3.0",
+    "tailwindcss": "4.3.5",
+    "typescript": "7.0.2",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  }
+}

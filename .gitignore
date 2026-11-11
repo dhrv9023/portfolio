@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist-ssr/
+test-results/
+playwright-report/
+.vercel/
+.env
+.env.*
+# Blender sources live outside the repo (decision M0-8); never commit them by accident
+*.blend
+*.blend1
+*.blend@

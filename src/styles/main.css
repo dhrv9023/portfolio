@@ -1,0 +1,30 @@
+@import "tailwindcss";
+@import "./fonts.css";
+@import "./base.css";
+
+/* Design tokens — Stage 02 System board. Exposed as Tailwind utilities (bg-soot, text-bone, font-mono …). */
+@theme {
+  --color-soot: #0d0c0a;
+  --color-iron: #181714;
+  --color-hammertone: #2f3833;
+  --color-basswood: #c8a877;
+  --color-moss: #4a5741;
+  --color-bone: #ece5d6;
+  --color-ash: #b9b2a4;
+  --color-graphite: #8f8a7f;
+  --color-tungsten: #f0a65a;
+  --color-vermilion: #e0532f;
+
+  --font-display: "Archivo", "Archivo Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Archivo", "Archivo Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "IBM Plex Mono Fallback", ui-monospace, monospace;
+
+  --radius-xs: 2px;
+  --spacing-gutter-mobile: 16px;
+  --spacing-gutter-tablet: 40px;
+  --spacing-gutter-desktop: 56px;
+
+  --ease-ui: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --duration-ui: 240ms;
+  --duration-ui-long: 400ms;
+}

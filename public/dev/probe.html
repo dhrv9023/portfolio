@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Hardware probe · portfolio dev tool</title>
+<style>
+  :root { color-scheme: dark; --soot:#0d0c0a; --iron:#181714; --bone:#ece5d6; --ash:#b9b2a4; --graphite:#8f8a7f; --tungsten:#f0a65a; --vermilion:#e0532f; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 16px 64px; background: var(--soot); color: var(--bone); font: 15px/1.55 system-ui, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; }
+  h1 { margin: 0 0 4px; font-size: 28px; letter-spacing: .02em; text-transform: uppercase; }
+  .mono, pre, textarea, code { font-family: ui-monospace, "IBM Plex Mono", monospace; font-size: 12px; }
+  .muted { color: var(--ash); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+  button { min-height: 44px; padding: 0 16px; border-radius: 2px; border: 1px solid #ece5d64d; background: transparent; color: var(--bone); font: inherit; cursor: pointer; }
+  button.primary { background: var(--bone); color: var(--soot); border: 0; font-weight: 600; }
+  button:focus-visible { outline: 2px solid var(--tungsten); outline-offset: 3px; }
+  button[disabled] { opacity: .5; cursor: default; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 24px; }
+  th, td { text-align: left; vertical-align: top; padding: 6px 12px 6px 0; border-bottom: 1px solid #ece5d61a; }
+  th { width: 260px; color: var(--ash); font-weight: 500; }
+  .ok { color: var(--bone); } .bad { color: var(--vermilion); } .warn { color: var(--tungsten); }
+  textarea { width: 100%; min-height: 260px; background: var(--iron); color: var(--bone); border: 1px solid #ece5d633; padding: 12px; }
+  canvas { display: block; width: 320px; height: 180px; margin-top: 8px; border: 1px solid #ece5d633; }
+  #status { min-height: 1.5em; }
+</style>
+</head>
+<body>
+<main>
+  <p class="mono muted">PORTFOLIO · M0 DEV TOOL · RUNS LOCALLY · SENDS NOTHING ANYWHERE</p>
+  <h1>Hardware probe</h1>
+  <p class="muted">This page records what this browser and GPU support. It reports WebGL2 support, compressed texture formats and limits, then runs a short GPU fill test. Click <b>Download JSON</b> and send the file back.</p>
+
+  <div class="row">
+    <button class="primary" id="run" type="button">Run probe</button>
+    <button id="copy" type="button" disabled>Copy JSON</button>
+    <button id="download" type="button" disabled>Download JSON</button>
+  </div>
+  <p id="status" class="mono" role="status" aria-live="polite">Ready. The fill test takes about 6 seconds.</p>
+
+  <h2>Summary</h2>
+  <table id="summary"><tbody><tr><td class="muted">Not run yet.</td></tr></tbody></table>
+
+  <h2>Fill test</h2>
+  <p class="muted">Draws a 1280×720 shader-heavy pass for 240 frames. Frame time = time between frames (capped by the display refresh). Sync time = draw plus a 1-pixel read-back, closer to raw GPU cost.</p>
+  <canvas id="bench" width="1280" height="720" aria-hidden="true"></canvas>
+
+  <h2>Raw result</h2>
+  <label for="out" class="muted">JSON (also downloadable)</label>
+  <textarea id="out" readonly spellcheck="false"></textarea>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var result = null;
+
+  function mq(q) { try { return matchMedia(q).matches; } catch (e) { return null; } }
+  function pct(arr, p) { if (!arr.length) return null; var s = arr.slice().sort(function (a, b) { return a - b; }); return +s[Math.min(s.length - 1, Math.floor(p * s.length))].toFixed(2); }
+
+  function signals() {
+    var c = navigator.connection || {};
+    var uad = navigator.userAgentData;
+    return {
+      userAgent: navigator.userAgent,
+      platformHint: uad ? { platform: uad.platform, mobile: uad.mobile, brands: uad.brands } : null,
+      hardwareConcurrency: navigator.hardwareConcurrency || null,
+      deviceMemoryGB: navigator.deviceMemory || null,
+      devicePixelRatio: window.devicePixelRatio,
+      screen: { w: screen.width, h: screen.height },
+      viewport: { w: innerWidth, h: innerHeight },
+      prefersReducedMotion: mq('(prefers-reduced-motion: reduce)'),
+      prefersReducedData: mq('(prefers-reduced-data: reduce)'),
+      saveData: c.saveData === undefined ? null : !!c.saveData,
+      effectiveConnection: c.effectiveType || null,
+      language: navigator.language,
+      timeZone: (Intl.DateTimeFormat().resolvedOptions() || {}).timeZone || null
+    };
+  }
+
+  function tryContext(kind, attrs) {
+    var canvas = document.createElement('canvas');
+    var gl = null, error = null;
+    try { gl = canvas.getContext(kind, attrs); } catch (e) { error = String(e && e.message || e); }
+    return { canvas: canvas, gl: gl, error: error };
+  }
+
+  function release(gl) {
+    try { var ext = gl && gl.getExtension('WEBGL_lose_context'); if (ext) ext.loseContext(); } catch (e) {}
+  }
+
+  function describe(gl, isWebGL2) {
+    var dbg = gl.getExtension('WEBGL_debug_renderer_info');
+    var exts = gl.getSupportedExtensions() || [];
+    var has = function (n) { return exts.indexOf(n) !== -1; };
+    var out = {
+      vendor: gl.getParameter(gl.VENDOR),
+      renderer: gl.getParameter(gl.RENDERER),
+      unmaskedVendor: dbg ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) : null,
+      unmaskedRenderer: dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : null,
+      version: gl.getParameter(gl.VERSION),
+      shadingLanguage: gl.getParameter(gl.SHADING_LANGUAGE_VERSION),
+      maxTextureSize: gl.getParameter(gl.MAX_TEXTURE_SIZE),
+      maxRenderbufferSize: gl.getParameter(gl.MAX_RENDERBUFFER_SIZE),
+      maxViewportDims: Array.prototype.slice.call(gl.getParameter(gl.MAX_VIEWPORT_DIMS)),
+      maxTextureUnits: gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS),
+      maxSamples: isWebGL2 ? gl.getParameter(gl.MAX_SAMPLES) : null,
+      antialiasContext: !!(gl.getContextAttributes() || {}).antialias,
+      compressedFormats: {
+        s3tc_BC1_BC3: has('WEBGL_compressed_texture_s3tc'),
+        s3tc_srgb: has('WEBGL_compressed_texture_s3tc_srgb'),
+        bptc_BC7: has('EXT_texture_compression_bptc'),
+        rgtc: has('EXT_texture_compression_rgtc'),
+        etc_ETC2: has('WEBGL_compressed_texture_etc'),
+        etc1: has('WEBGL_compressed_texture_etc1'),
+        astc: has('WEBGL_compressed_texture_astc'),
+        pvrtc: has('WEBGL_compressed_texture_pvrtc') || has('WEBKIT_WEBGL_compressed_texture_pvrtc')
+      },
+      features: {
+        parallelShaderCompile: has('KHR_parallel_shader_compile'),
+        colorBufferFloat: has('EXT_color_buffer_float'),
+        textureFloatLinear: has('OES_texture_float_linear'),
+        timerQuery: has('EXT_disjoint_timer_query_webgl2') || has('EXT_disjoint_timer_query'),
+        anisotropic: has('EXT_texture_filter_anisotropic')
+      },
+      extensions: exts
+    };
+    var r = (out.unmaskedRenderer || out.renderer || '') + '';
+    out.softwareRendererSuspected = /swiftshader|llvmpipe|softpipe|software|basic render|microsoft basic/i.test(r);
+    return out;
+  }
+
+  var VS = '#version 300 es\nin vec2 p; out vec2 uv; void main(){ uv = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }';
+  var FS = '#version 300 es\nprecision highp float; in vec2 uv; uniform float t; uniform sampler2D tex; out vec4 o;\n' +
+    'void main(){ vec3 c = vec3(0.); vec2 q = uv;\n' +
+    ' for (int i = 0; i < 24; i++) { float f = float(i); q += 0.013*vec2(sin(q.y*9.+t+f), cos(q.x*7.-t+f)); c += texture(tex, q*1.7+f*0.01).rgb; }\n' +
+    ' o = vec4(c/24., 1.); }';
+
+  function compile(gl, type, src) {
+    var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) || 'shader compile failed');
+    return s;
+  }
+
+  function fillTest(done) {
+    var canvas = $('bench');
+    var gl = null;
+    try { gl = canvas.getContext('webgl2', { antialias: false, alpha: false, powerPreference: 'high-performance', preserveDrawingBuffer: false }); } catch (e) {}
+    if (!gl) { done({ ran: false, reason: 'no WebGL2 context on the visible canvas' }); return; }
+    try {
+      var t0 = performance.now();
+      var prog = gl.createProgram();
+      gl.attachShader(prog, compile(gl, gl.VERTEX_SHADER, VS));
+      gl.attachShader(prog, compile(gl, gl.FRAGMENT_SHADER, FS));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog) || 'link failed');
+      var compileMs = performance.now() - t0;
+      gl.useProgram(prog);
+      var buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+      var loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+      var size = 1024, px = new Uint8Array(size * size * 4);
+      for (var i = 0; i < px.length; i += 4) { var v = (i * 2654435761) >>> 24; px[i] = v; px[i+1] = (v * 3) & 255; px[i+2] = (v * 7) & 255; px[i+3] = 255; }
+      var tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+      var tu = performance.now();
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, size, size, 0, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      gl.generateMipmap(gl.TEXTURE_2D);
+      var uploadMs = performance.now() - tu;
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+      var uT = gl.getUniformLocation(prog, 't');
+      gl.viewport(0, 0, 1280, 720);
+      var quick = /[?&]quick\b/.test(location.search);
+      var frames = [], syncs = [], last = 0, n = 0, total = quick ? 40 : 250, pixel = new Uint8Array(4);
+      function frame(ts) {
+        if (last) frames.push(ts - last);
+        last = ts;
+        var s = performance.now();
+        gl.uniform1f(uT, ts / 1000);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+        syncs.push(performance.now() - s);
+        n++;
+        if (n % 25 === 0) $('status').textContent = 'Fill test… ' + Math.round(100 * n / total) + '%';
+        if (n < total) requestAnimationFrame(frame);
+        else {
+          var f = frames.slice(10), y = syncs.slice(10);
+          var r = {
+            ran: true, resolution: '1280x720', framesMeasured: f.length, quickMode: quick,
+            shaderCompileMs: +compileMs.toFixed(1), textureUpload1024Ms: +uploadMs.toFixed(1),
+            frameMs: { p50: pct(f, 0.5), p90: pct(f, 0.9), max: pct(f, 1) },
+            drawSyncMs: { p50: pct(y, 0.5), p90: pct(y, 0.9), max: pct(y, 1) },
+            approxFps: f.length ? +(1000 / pct(f, 0.5)).toFixed(1) : null
+          };
+          release(gl);
+          done(r);
+        }
+      }
+      requestAnimationFrame(frame);
+    } catch (e) {
+      release(gl);
+      done({ ran: false, reason: String(e && e.message || e) });
+    }
+  }
+
+  function row(k, v, cls) { return '<tr><th scope="row">' + k + '</th><td class="mono ' + (cls || '') + '">' + v + '</td></tr>'; }
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+
+  function renderSummary(r) {
+    var g = r.webgl2Strict.ok ? r.webgl2Strict.info : (r.webgl2Lenient.ok ? r.webgl2Lenient.info : null);
+    var cf = g ? g.compressedFormats : {};
+    var fmts = Object.keys(cf).filter(function (k) { return cf[k]; }).join(', ') || 'none';
+    var etc1sTarget = g && (cf.s3tc_BC1_BC3 || cf.etc_ETC2 || cf.etc1 || cf.astc);
+    var h = '';
+    h += row('WebGL2 (performance-caveat check)', r.webgl2Strict.ok ? 'YES' : 'NO' + (r.webgl2Strict.error ? ' — ' + esc(r.webgl2Strict.error) : ''), r.webgl2Strict.ok ? 'ok' : 'bad');
+    h += row('WebGL2 (any, incl. software)', r.webgl2Lenient.ok ? 'YES' : 'NO', r.webgl2Lenient.ok ? 'ok' : 'bad');
+    h += row('WebGL1', r.webgl1.ok ? 'YES' : 'NO', r.webgl1.ok ? 'ok' : 'warn');
+    if (g) {
+      h += row('GPU (unmasked)', esc(g.unmaskedRenderer || 'not exposed') );
+      h += row('GPU (reported)', esc(g.renderer) + ' · ' + esc(g.vendor));
+      h += row('Software renderer suspected', g.softwareRendererSuspected ? 'YES — would be T3' : 'no', g.softwareRendererSuspected ? 'bad' : 'ok');
+      h += row('Max texture size', g.maxTextureSize, g.maxTextureSize >= 4096 ? 'ok' : 'warn');
+      h += row('Max MSAA samples', g.maxSamples);
+      h += row('Compressed formats', fmts);
+      h += row('KTX2 / ETC1S target available', etc1sTarget ? 'YES' : 'NO — T1 would use the WebP fallback', etc1sTarget ? 'ok' : 'warn');
+      h += row('Parallel shader compile', g.features.parallelShaderCompile ? 'yes' : 'no');
+    }
+    var s = r.signals;
+    h += row('CPU threads / device memory', (s.hardwareConcurrency || '?') + ' threads · ' + (s.deviceMemoryGB ? s.deviceMemoryGB + ' GB (browser-rounded)' : 'not exposed'));
+    h += row('Screen · DPR', s.screen.w + '×' + s.screen.h + ' · DPR ' + s.devicePixelRatio);
+    h += row('Reduced motion / reduced data / Save-Data', [s.prefersReducedMotion, s.prefersReducedData, s.saveData].map(String).join(' / '));
+    if (r.fillTest) {
+      var ft = r.fillTest;
+      h += row('Fill test', ft.ran ? ('frame p50 ' + ft.frameMs.p50 + ' ms · p90 ' + ft.frameMs.p90 + ' ms · max ' + ft.frameMs.max + ' ms (≈' + ft.approxFps + ' fps)<br>draw+sync p50 ' + ft.drawSyncMs.p50 + ' ms · p90 ' + ft.drawSyncMs.p90 + ' ms<br>shader compile ' + ft.shaderCompileMs + ' ms · 1024² upload ' + ft.textureUpload1024Ms + ' ms') : 'not run — ' + esc(ft.reason), ft.ran ? '' : 'warn');
+    }
+    $('summary').innerHTML = '<tbody>' + h + '</tbody>';
+  }
+
+  function run() {
+    $('run').disabled = true;
+    $('status').textContent = 'Probing…';
+    var r = { probeVersion: 1, takenAt: new Date().toISOString(), page: location.protocol + '//' + location.host + location.pathname, signals: signals() };
+
+    var strict = tryContext('webgl2', { failIfMajorPerformanceCaveat: true });
+    r.webgl2Strict = { ok: !!strict.gl, error: strict.error, info: strict.gl ? describe(strict.gl, true) : null };
+    release(strict.gl);
+
+    var lenient = tryContext('webgl2', {});
+    r.webgl2Lenient = { ok: !!lenient.gl, error: lenient.error, info: lenient.gl && !strict.gl ? describe(lenient.gl, true) : null };
+    release(lenient.gl);
+
+    var w1 = tryContext('webgl', {});
+    r.webgl1 = { ok: !!w1.gl, error: w1.error, renderer: w1.gl ? String(w1.gl.getParameter(w1.gl.RENDERER)) : null };
+    release(w1.gl);
+
+    renderSummary(r);
+    $('status').textContent = r.webgl2Strict.ok ? 'Fill test…' : 'No hardware WebGL2: this device would get T3 (static). Skipping fill test.';
+
+    var finish = function (ft) {
+      r.fillTest = ft;
+      result = r;
+      renderSummary(r);
+      $('out').value = JSON.stringify(r, null, 2);
+      $('copy').disabled = false; $('download').disabled = false; $('run').disabled = false;
+      $('status').textContent = 'Done. Download the JSON and send it back.';
+    };
+    if (r.webgl2Strict.ok) setTimeout(function () { fillTest(finish); }, 50);
+    else finish({ ran: false, reason: 'skipped: no hardware WebGL2' });
+  }
+
+  $('run').addEventListener('click', run);
+  $('copy').addEventListener('click', function () {
+    var t = $('out');
+    var fallback = function () { t.focus(); t.select(); try { document.execCommand('copy'); $('status').textContent = 'Copied.'; } catch (e) { $('status').textContent = 'Select the text and copy it manually.'; } };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t.value).then(function () { $('status').textContent = 'Copied.'; }, fallback);
+    else fallback();
+  });
+  $('download').addEventListener('click', function () {
+    if (!result) return;
+    var g = (result.webgl2Strict.info || result.webgl2Lenient.info || {});
+    var name = 'probe-' + ((g.unmaskedRenderer || g.renderer || 'no-webgl2') + '').replace(/[^a-z0-9]+/gi, '-').slice(0, 40).toLowerCase() + '-' + result.takenAt.slice(0, 19).replace(/[:T]/g, '') + '.json';
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' }));
+    a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  });
+})();
+</script>
+</body>
+</html>
