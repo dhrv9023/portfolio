@@ -11,7 +11,7 @@
     "build": "npm run build:client && npm run build:ssr && node scripts/prerender.mjs && node scripts/check-budgets.mjs && node scripts/check-verify.mjs",
     "build:client": "vite build",
     "build:ssr": "vite build --ssr src/entries/server.tsx",
-    "build:release": "SITE_RELEASE=1 npm run build",
+    "build:release": "node scripts/build-release.mjs",
     "preview": "vite preview --port 4173 --strictPort",
     "probe:serve": "vite --host --port 5173",
     "typecheck": "tsc --noEmit",

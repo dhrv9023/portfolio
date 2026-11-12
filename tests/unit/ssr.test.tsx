@@ -13,7 +13,7 @@ describe('prerender', () => {
   it('studio page has one h1, a skip link, a main landmark and all nine chapter sections', () => {
     const { html } = render(route('/'), opts);
     expect(html.match(/<h1\b/g)).toHaveLength(1);
-    expect(html).toContain('>Dhruv Sehgal</h1>');
+    expect(html).toContain('<span class="h1-line">Dhruv</span> <span class="h1-line">Sehgal</span></h1>');
     expect(html).toContain('href="#main"');
     expect(html).toMatch(/<main id="main"/);
     for (const id of ['studio', 'gestureiq', 'stockpred', 'pravah', 'kareerist', 'experience', 'toolkit', 'about', 'contact']) {
@@ -25,7 +25,8 @@ describe('prerender', () => {
     const { html, unresolved } = render(route('/'), opts);
     expect(html).toContain('data-fact-status="verify"');
     expect(html).toContain('class="status-tag"');
-    expect(unresolved.some((u) => u.id === 'site.positioning' && u.status === 'verify')).toBe(true);
+    expect(unresolved.some((u) => u.id === 'head./.description' && u.status === 'verify')).toBe(true);
+    expect(unresolved.some((u) => u.id === 'site.positioning')).toBe(false); // confirmed by Dhruv 2026-11-12
     expect(unresolved.some((u) => u.status === 'scaffold')).toBe(true);
   });
 

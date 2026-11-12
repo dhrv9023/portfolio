@@ -1,0 +1,167 @@
+/* Studio header, mobile menu and quality control — Stage 02 boards "Hero" (desktop/tablet/mobile) and "Review" (menu). */
+@layer components {
+  :root {
+    --header-h: 56px;
+    --gutter: var(--spacing-gutter-mobile);
+  }
+  @media (min-width: 600px) {
+    :root { --header-h: 64px; --gutter: var(--spacing-gutter-tablet); }
+  }
+  @media (min-width: 1024px) {
+    :root { --header-h: 72px; }
+  }
+  @media (min-width: 1280px) {
+    :root { --gutter: var(--spacing-gutter-desktop); }
+  }
+
+  /* Controls that only work with JavaScript stay out of the page (and the accessibility tree) without it. */
+  html:not([data-js]) [data-needs-js] { display: none !important; }
+
+  .site-header--studio {
+    min-height: var(--header-h);
+    padding: 0 var(--gutter);
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    justify-content: flex-start;
+  }
+  html[data-js] .site-header--studio { flex-wrap: nowrap; height: var(--header-h); }
+
+  .site-header--studio .brand { margin-right: auto; color: var(--color-bone); letter-spacing: 0.16em; font-size: 0.6875rem; }
+  @media (min-width: 600px) { .site-header--studio .brand { font-size: 0.75rem; } }
+
+  .header-dial {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    margin: 0 auto 0 0;
+    color: var(--color-ash);
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  @media (min-width: 1024px) { .header-dial { display: flex; } }
+
+  .primary-nav ul { gap: 8px 32px; }
+  .primary-nav a {
+    font-family: var(--font-sans);
+    font-stretch: 90%;
+    font-size: 0.875rem;
+    letter-spacing: 0;
+    text-transform: none;
+    text-decoration: none;
+  }
+  .primary-nav a:hover { color: var(--color-tungsten); }
+  html[data-js] .primary-nav { display: none; }
+  @media (min-width: 1024px) { html[data-js] .primary-nav { display: block; } }
+
+  .header-tools { display: flex; align-items: center; gap: 10px; }
+
+  .tool-button {
+    min-height: 44px;
+    padding: 0 12px;
+    background: transparent;
+    color: var(--color-ash);
+    border: 1px solid color-mix(in srgb, var(--color-bone) 24%, transparent);
+    border-radius: var(--radius-xs);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .tool-button:hover { color: var(--color-bone); }
+  .tool-button--menu { padding: 0 16px; color: var(--color-bone); border-color: color-mix(in srgb, var(--color-bone) 30%, transparent); letter-spacing: 0.14em; }
+  @media (min-width: 1024px) {
+    .tool-button--menu { display: none !important; }
+    .tool-button { min-height: 32px; }
+  }
+  /* Phones: the quality control lives inside the menu panel. */
+  @media (max-width: 599px) { .quality { display: none !important; } }
+
+  /* Quality popover (tablet + desktop) */
+  .quality { position: relative; }
+  .quality__popover {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 12px);
+    z-index: 30;
+    width: min(340px, calc(100vw - 2 * var(--gutter)));
+    padding: 16px;
+    background: var(--color-iron);
+    border: 1px solid color-mix(in srgb, var(--color-bone) 18%, transparent);
+    border-radius: var(--radius-xs);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.5);
+    font-family: var(--font-sans);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .quality__popover[hidden],
+  .menu-panel[hidden] { display: none; }
+
+  .quality-panel { display: flex; flex-direction: column; gap: 12px; }
+  .q-group { margin: 0; padding: 0; border: 0; min-width: 0; }
+  .q-group legend {
+    padding: 0;
+    margin-bottom: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-ash);
+  }
+  .q-segments {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border: 1px solid color-mix(in srgb, var(--color-bone) 22%, transparent);
+    border-radius: var(--radius-xs);
+  }
+  .q-seg { position: relative; display: block; }
+  .q-seg + .q-seg { border-left: 1px solid color-mix(in srgb, var(--color-bone) 22%, transparent); }
+  .q-seg input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .q-seg span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-bone);
+  }
+  .q-seg input:checked + span { background: var(--color-bone); color: var(--color-soot); }
+  .q-seg input:focus-visible + span { outline: 2px solid var(--color-tungsten); outline-offset: 3px; }
+  .q-note { margin: 0; font-size: 0.8125rem; line-height: 1.5; color: var(--color-ash); }
+  .q-remember { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 0.8125rem; color: #d6cfc0; cursor: pointer; }
+  .q-remember input { width: 18px; height: 18px; accent-color: var(--color-tungsten); }
+  .quality-panel .scaffold { margin: 0; font-size: 0.625rem; }
+
+  /* Menu panel (below 1024px, JavaScript only) */
+  .menu-panel {
+    position: fixed;
+    inset: var(--header-h) 0 0 0;
+    z-index: 9;
+    overflow-y: auto;
+    padding: 8px var(--gutter) 32px;
+    background: var(--color-soot);
+  }
+  @media (min-width: 1024px) { .menu-panel { display: none !important; } }
+  html[data-menu-open] { overflow: hidden; }
+
+  .menu-panel ol { margin: 0; padding: 0; list-style: none; }
+  .menu-panel li a {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 52px;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-bone) 8%, transparent);
+    font-family: var(--font-display);
+    font-stretch: 72%;
+    font-weight: 640;
+    font-size: 1.25rem;
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+  .menu-panel__num { font-family: var(--font-mono); font-stretch: 100%; font-weight: 400; font-size: 0.625rem; color: var(--color-graphite); }
+  .menu-panel__quality { margin-top: 24px; max-width: 420px; }
+}

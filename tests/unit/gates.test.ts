@@ -73,7 +73,7 @@ describe('architecture boundaries', () => {
     w('src/chapters/Hero.tsx', "import * as THREE from 'three';\nimport { X } from '../stage/World';");
     w('src/quality/score.ts', "import { useState } from 'react';");
     w('src/components/Lazy.tsx', "const m = import('../stage/StageHost');");
-    w('src/entries/studio.client.tsx', "const m = import('../stage/StageHost');");
+    w('src/client/main.ts', "const m = import('../stage/StageHost');\nimport { useState } from 'react';");
     w('src/stage/StageHost.tsx', "import { Canvas } from '@react-three/fiber';");
     const rules = checkBoundaries(root).map((v: { file: string; rule: string }) => `${v.rule} ${v.file}`).sort();
     expect(rules).toEqual([
@@ -81,6 +81,7 @@ describe('architecture boundaries', () => {
       'R2 src/chapters/Hero.tsx',
       'R3 src/components/Lazy.tsx',
       'R4 src/quality/score.ts',
+      'R5 src/client/main.ts',
     ]);
   });
 });

@@ -6,10 +6,10 @@ export const site = {
   name: known('Dhruv Sehgal', 'project owner'),
   /** Provisional positioning chosen by Dhruv (Stage 01 refinement). */
   roles: known('AI Engineer / Backend Engineer', 'provisional positioning, Stage 01 refinement'),
-  /** Hero sentence drafted in Stage 02 — needs Dhruv's confirmation or rewrite. */
-  positioning: verify(
+  /** Hero sentence drafted in Stage 02; confirmed by Dhruv on 2026-11-12. */
+  positioning: known(
     'AI Engineer and Backend Engineer. I build intelligent systems and the backends that keep them dependable.',
-    'drafted in Stage 02 — confirm or rewrite',
+    'drafted in Stage 02; confirmed by Dhruv 2026-11-12',
   ),
   description: verify(
     'Portfolio of Dhruv Sehgal, AI Engineer and Backend Engineer.',

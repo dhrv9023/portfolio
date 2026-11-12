@@ -29,6 +29,9 @@ for (const [page, a] of perPage) {
   const cssGz = a.styles.reduce((s, u) => s + size(u), 0);
   const fontBytes = a.fonts.reduce((s, u) => s + readDist(dist, u).length, 0);
   const jsGz = a.scripts.reduce((s, u) => s + size(u), 0) + a.inlineScriptBytes;
+  // Preloaded stills are alternatives chosen by media query: one loads per device, so count the largest.
+  const stillGz = a.images.reduce((m, u) => Math.max(m, size(u)), 0);
+  if (a.images.length) check(page, `hero still (largest of ${a.images.length})`, stillGz, budgets.heroStill);
 
   check(page, 'html', htmlGz, budgets.html);
   check(page, 'css', cssGz, budgets.css);
@@ -42,7 +45,7 @@ for (const [page, a] of perPage) {
   const externalJs = a.scripts.reduce((s, u) => s + size(u), 0);
   check(page, 'inline JS (head gate)', a.inlineScriptBytes, budgets.inlineJs);
   if (page === '404.html') check(page, 'JS files', externalJs, budgets.notFoundJs);
-  check(page, 'first view total', htmlGz + cssGz + fontBytes + jsGz, budgets.firstView);
+  check(page, 'first view total', htmlGz + cssGz + fontBytes + jsGz + stillGz, budgets.firstView);
 }
 
 const deferred = allJs.filter((u) => !firstViewScripts.has(u));

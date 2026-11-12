@@ -20,6 +20,20 @@ function headGate(): Plugin {
 }
 
 /**
+ * Dev server: injects the React dev renderer (pages are not prerendered in dev).
+ * Build: removes the marker, so production pages ship no React in their initial scripts.
+ */
+function devRenderer(): Plugin {
+  return {
+    name: 'portfolio:dev-renderer',
+    transformIndexHtml(html, ctx) {
+      const dev = Boolean(ctx.server);
+      return html.replace('<!--dev-->', dev ? '<script type="module" src="/src/entries/dev.client.tsx"></script>' : '');
+    },
+  };
+}
+
+/**
  * `vite preview` only: mirror Vercel's static behaviour (cleanUrls, trailingSlash: false, 404.html)
  * so local E2E tests see the same URLs as production.
  */
@@ -58,7 +72,7 @@ const pages = {
 
 export default defineConfig(({ isSsrBuild }) => ({
   appType: 'mpa',
-  plugins: [react(), tailwindcss(), headGate(), vercelLikePreview()],
+  plugins: [react(), tailwindcss(), headGate(), devRenderer(), vercelLikePreview()],
   build: isSsrBuild
     ? {
         outDir: 'dist-ssr',
@@ -68,7 +82,7 @@ export default defineConfig(({ isSsrBuild }) => ({
     : {
         outDir: 'dist',
         emptyOutDir: true,
-        target: 'es2022',
+        target: 'es2020', // widest practical reach; three.js and R3F are ES2020-safe
         manifest: true,
         modulePreload: { polyfill: false },
         rolldownOptions: {

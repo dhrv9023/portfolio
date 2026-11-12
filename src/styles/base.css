@@ -9,7 +9,7 @@
     line-height: 1.55;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-    scroll-padding-top: 88px; /* header height + 16 — focus never hides under the sticky header */
+    scroll-padding-top: calc(var(--header-h, 72px) + 16px); /* focus never hides under the sticky header */
   }
 
   body {

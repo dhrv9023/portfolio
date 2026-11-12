@@ -25,26 +25,30 @@
   textarea { width: 100%; min-height: 260px; background: var(--iron); color: var(--bone); border: 1px solid #ece5d633; padding: 12px; }
   canvas { display: block; width: 320px; height: 180px; margin-top: 8px; border: 1px solid #ece5d633; }
   #status { min-height: 1.5em; }
+  .hint { margin: 12px 0; padding: 10px 12px; border: 1px solid #ece5d633; background: var(--iron); font-size: 13px; color: var(--ash); }
+  .hint b { color: var(--bone); }
 </style>
 </head>
 <body>
 <main>
   <p class="mono muted">PORTFOLIO · M0 DEV TOOL · RUNS LOCALLY · SENDS NOTHING ANYWHERE</p>
   <h1>Hardware probe</h1>
-  <p class="muted">This page records what this browser and GPU support. It reports WebGL2 support, compressed texture formats and limits, then runs a short GPU fill test. Click <b>Download JSON</b> and send the file back.</p>
+  <p class="muted">Capability probe, same on Windows, Ubuntu, Android and any other OS. It records what this browser and GPU <em>support</em>: WebGL2, which GPU the browser actually used, texture limits, compressed texture formats and a provisional tier. It does <b>not</b> measure rendering speed (that comes after the full portfolio is built). Click <b>Download JSON</b> and send the file back.</p>
+  <div id="osHint" class="hint"></div>
 
   <div class="row">
     <button class="primary" id="run" type="button">Run probe</button>
     <button id="copy" type="button" disabled>Copy JSON</button>
     <button id="download" type="button" disabled>Download JSON</button>
   </div>
-  <p id="status" class="mono" role="status" aria-live="polite">Ready. The fill test takes about 6 seconds.</p>
+  <p id="status" class="mono" role="status" aria-live="polite">Ready. The probe takes under a second.</p>
 
   <h2>Summary</h2>
   <table id="summary"><tbody><tr><td class="muted">Not run yet.</td></tr></tbody></table>
 
-  <h2>Fill test</h2>
-  <p class="muted">Draws a 1280×720 shader-heavy pass for 240 frames. Frame time = time between frames (capped by the display refresh). Sync time = draw plus a 1-pixel read-back, closer to raw GPU cost.</p>
+  <h2>Optional GPU fill test (not needed yet)</h2>
+  <p class="muted">Rendering and frame-rate tests are scheduled for after the full portfolio is built, so skip this for now. If you run it anyway, it draws a 1280×720 shader-heavy pass for 240 frames (about 6 s). Results are added to the JSON but are not used for decisions.</p>
+  <div class="row"><button id="fill" type="button" disabled>Run optional fill test</button></div>
   <canvas id="bench" width="1280" height="720" aria-hidden="true"></canvas>
 
   <h2>Raw result</h2>
@@ -61,11 +65,49 @@
   function mq(q) { try { return matchMedia(q).matches; } catch (e) { return null; } }
   function pct(arr, p) { if (!arr.length) return null; var s = arr.slice().sort(function (a, b) { return a - b; }); return +s[Math.min(s.length - 1, Math.floor(p * s.length))].toFixed(2); }
 
+  /** For labelling results only. The site itself never branches on the OS. */
+  function detectOS() {
+    var uad = navigator.userAgentData, p = (uad && uad.platform) || '', ua = navigator.userAgent || '', np = navigator.platform || '';
+    var s = p || np;
+    if (/android/i.test(p + ua)) return 'Android';
+    if (/win/i.test(s) || /Windows/i.test(ua)) return 'Windows';
+    if (/mac/i.test(s) && !/iphone|ipad/i.test(ua)) return 'macOS';
+    if (/iphone|ipad|ipod/i.test(ua) || (/mac/i.test(s) && navigator.maxTouchPoints > 1)) return 'iOS';
+    if (/linux|x11|cros/i.test(s + ua)) return 'Linux';
+    return 'Unknown';
+  }
+
+  function gpuClass(renderer) {
+    var r = (renderer || '') + '';
+    if (/swiftshader|llvmpipe|softpipe|software|basic render|microsoft basic/i.test(r)) return 'software';
+    if (/nvidia|geforce|rtx|gtx|quadro/i.test(r)) return 'NVIDIA';
+    if (/amd|radeon|radv|\bati\b/i.test(r)) return 'AMD';
+    if (/intel|iris|uhd|hd graphics/i.test(r)) return 'Intel';
+    if (/apple/i.test(r)) return 'Apple';
+    if (/adreno|qualcomm/i.test(r)) return 'Qualcomm Adreno';
+    if (/mali|arm/i.test(r)) return 'Arm Mali';
+    if (/powervr|imagination/i.test(r)) return 'PowerVR';
+    return 'unknown';
+  }
+
+  /** Same rules as the site's quality/score.ts will use; capabilities only, no timing. */
+  function provisionalTier(r, g) {
+    if (!r.webgl2Strict.ok) return { tier: 'T3', why: 'no hardware WebGL2 (or blocked by the browser)' };
+    if (g.softwareRendererSuspected) return { tier: 'T3', why: 'software renderer' };
+    var s = r.signals, why = [];
+    if (s.deviceMemoryGB && s.deviceMemoryGB <= 4) why.push('device memory ≤ 4 GB');
+    if (s.hardwareConcurrency && s.hardwareConcurrency <= 4) why.push('≤ 4 CPU threads');
+    if (g.maxTextureSize < 4096) why.push('max texture size < 4096');
+    if (why.length) return { tier: 'T2 at most', why: why.join(', ') };
+    return { tier: 'T1 candidate', why: 'capabilities allow it; the final tier is decided by measured frame times in a later stage' };
+  }
+
   function signals() {
     var c = navigator.connection || {};
     var uad = navigator.userAgentData;
     return {
       userAgent: navigator.userAgent,
+      os: detectOS(),
       platformHint: uad ? { platform: uad.platform, mobile: uad.mobile, brands: uad.brands } : null,
       hardwareConcurrency: navigator.hardwareConcurrency || null,
       deviceMemoryGB: navigator.deviceMemory || null,
@@ -215,11 +257,12 @@
     var fmts = Object.keys(cf).filter(function (k) { return cf[k]; }).join(', ') || 'none';
     var etc1sTarget = g && (cf.s3tc_BC1_BC3 || cf.etc_ETC2 || cf.etc1 || cf.astc);
     var h = '';
+    h += row('OS · browser', esc(r.signals.os) + ' · ' + esc((r.signals.platformHint && r.signals.platformHint.brands ? r.signals.platformHint.brands.filter(function (b) { return !/not.?a.?brand/i.test(b.brand); }).map(function (b) { return b.brand + ' ' + b.version; }).join(', ') : r.signals.userAgent)));
     h += row('WebGL2 (performance-caveat check)', r.webgl2Strict.ok ? 'YES' : 'NO' + (r.webgl2Strict.error ? ' — ' + esc(r.webgl2Strict.error) : ''), r.webgl2Strict.ok ? 'ok' : 'bad');
     h += row('WebGL2 (any, incl. software)', r.webgl2Lenient.ok ? 'YES' : 'NO', r.webgl2Lenient.ok ? 'ok' : 'bad');
     h += row('WebGL1', r.webgl1.ok ? 'YES' : 'NO', r.webgl1.ok ? 'ok' : 'warn');
     if (g) {
-      h += row('GPU (unmasked)', esc(g.unmaskedRenderer || 'not exposed') );
+      h += row('GPU actually used (unmasked)', esc(g.unmaskedRenderer || 'not exposed') + ' → <b>' + esc(gpuClass(g.unmaskedRenderer || g.renderer)) + '</b>');
       h += row('GPU (reported)', esc(g.renderer) + ' · ' + esc(g.vendor));
       h += row('Software renderer suspected', g.softwareRendererSuspected ? 'YES — would be T3' : 'no', g.softwareRendererSuspected ? 'bad' : 'ok');
       h += row('Max texture size', g.maxTextureSize, g.maxTextureSize >= 4096 ? 'ok' : 'warn');
@@ -228,13 +271,19 @@
       h += row('KTX2 / ETC1S target available', etc1sTarget ? 'YES' : 'NO — T1 would use the WebP fallback', etc1sTarget ? 'ok' : 'warn');
       h += row('Parallel shader compile', g.features.parallelShaderCompile ? 'yes' : 'no');
     }
+    if (g) {
+      var pt = provisionalTier(r, g);
+      h += row('Provisional tier (capabilities only)', '<b>' + esc(pt.tier) + '</b> — ' + esc(pt.why), pt.tier === 'T3' ? 'warn' : 'ok');
+    } else {
+      h += row('Provisional tier (capabilities only)', '<b>T3</b> — no WebGL2 context available', 'warn');
+    }
     var s = r.signals;
     h += row('CPU threads / device memory', (s.hardwareConcurrency || '?') + ' threads · ' + (s.deviceMemoryGB ? s.deviceMemoryGB + ' GB (browser-rounded)' : 'not exposed'));
     h += row('Screen · DPR', s.screen.w + '×' + s.screen.h + ' · DPR ' + s.devicePixelRatio);
     h += row('Reduced motion / reduced data / Save-Data', [s.prefersReducedMotion, s.prefersReducedData, s.saveData].map(String).join(' / '));
     if (r.fillTest) {
       var ft = r.fillTest;
-      h += row('Fill test', ft.ran ? ('frame p50 ' + ft.frameMs.p50 + ' ms · p90 ' + ft.frameMs.p90 + ' ms · max ' + ft.frameMs.max + ' ms (≈' + ft.approxFps + ' fps)<br>draw+sync p50 ' + ft.drawSyncMs.p50 + ' ms · p90 ' + ft.drawSyncMs.p90 + ' ms<br>shader compile ' + ft.shaderCompileMs + ' ms · 1024² upload ' + ft.textureUpload1024Ms + ' ms') : 'not run — ' + esc(ft.reason), ft.ran ? '' : 'warn');
+      h += row('Fill test (optional, later stage)', ft.ran ? ('frame p50 ' + ft.frameMs.p50 + ' ms · p90 ' + ft.frameMs.p90 + ' ms · max ' + ft.frameMs.max + ' ms (≈' + ft.approxFps + ' fps)<br>draw+sync p50 ' + ft.drawSyncMs.p50 + ' ms · p90 ' + ft.drawSyncMs.p90 + ' ms<br>shader compile ' + ft.shaderCompileMs + ' ms · 1024² upload ' + ft.textureUpload1024Ms + ' ms') : 'not run — ' + esc(ft.reason), ft.ran ? '' : 'warn');
     }
     $('summary').innerHTML = '<tbody>' + h + '</tbody>';
   }
@@ -256,20 +305,39 @@
     r.webgl1 = { ok: !!w1.gl, error: w1.error, renderer: w1.gl ? String(w1.gl.getParameter(w1.gl.RENDERER)) : null };
     release(w1.gl);
 
+    var g0 = r.webgl2Strict.info || r.webgl2Lenient.info;
+    r.gpuClass = g0 ? gpuClass(g0.unmaskedRenderer || g0.renderer) : null;
+    r.provisionalTier = g0 && r.webgl2Strict.ok ? provisionalTier(r, g0) : { tier: 'T3', why: g0 ? 'no hardware WebGL2' : 'no WebGL2 context available' };
+    r.fillTest = { ran: false, reason: 'not requested — rendering tests are scheduled after the full portfolio is built' };
+    result = r;
     renderSummary(r);
-    $('status').textContent = r.webgl2Strict.ok ? 'Fill test…' : 'No hardware WebGL2: this device would get T3 (static). Skipping fill test.';
-
-    var finish = function (ft) {
-      r.fillTest = ft;
-      result = r;
-      renderSummary(r);
-      $('out').value = JSON.stringify(r, null, 2);
-      $('copy').disabled = false; $('download').disabled = false; $('run').disabled = false;
-      $('status').textContent = 'Done. Download the JSON and send it back.';
-    };
-    if (r.webgl2Strict.ok) setTimeout(function () { fillTest(finish); }, 50);
-    else finish({ ran: false, reason: 'skipped: no hardware WebGL2' });
+    $('out').value = JSON.stringify(r, null, 2);
+    $('copy').disabled = false; $('download').disabled = false; $('run').disabled = false;
+    $('fill').disabled = !r.webgl2Strict.ok;
+    $('status').textContent = 'Done. Check the "GPU actually used" row matches the GPU you intended, then download the JSON.';
   }
+
+  $('fill').addEventListener('click', function () {
+    if (!result) return;
+    $('fill').disabled = true;
+    $('status').textContent = 'Fill test…';
+    fillTest(function (ft) {
+      result.fillTest = ft;
+      renderSummary(result);
+      $('out').value = JSON.stringify(result, null, 2);
+      $('fill').disabled = false;
+      $('status').textContent = 'Fill test done. The JSON now includes it.';
+    });
+  });
+
+  (function showOsHint() {
+    var os = detectOS(), el = $('osHint'), html;
+    if (os === 'Windows') html = '<b>Windows:</b> to test the RTX 2050, set Chrome to <i>High performance</i> in Settings → System → Display → Graphics, close every Chrome window, reopen, and check <code>chrome://gpu</code> names the GPU you intended. This page\'s “GPU actually used” row must agree.';
+    else if (os === 'Linux') html = '<b>Linux:</b> use plain Chrome in a <i>fresh profile</i> (<code>google-chrome --user-data-dir=$HOME/.cache/probe-N chrome://gpu</code>) and do not force the NVIDIA GPU. Check <code>chrome://gpu</code> says WebGL2 “Hardware accelerated”. If it says Software or Disabled, the result is still valid: it means this machine would get the static T3 site.';
+    else if (os === 'Android') html = '<b>Android:</b> open <code>chrome://gpu</code> in Chrome and screenshot it, then run this probe and download the JSON.';
+    else html = '<b>' + os + ':</b> open the browser\'s GPU page (<code>chrome://gpu</code> or <code>about:support</code>) and make sure it agrees with the “GPU actually used” row below.';
+    el.innerHTML = html;
+  })();
 
   $('run').addEventListener('click', run);
   $('copy').addEventListener('click', function () {

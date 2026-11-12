@@ -1,0 +1,166 @@
+/* Hero chapter (00 — The Studio). Approved boards: Hero desktop 1440, tablet 834, mobile 390. */
+@layer components {
+  /* Full-bleed: break out of <main>'s side padding. */
+  .hero {
+    position: relative;
+    isolation: isolate;
+    margin-inline: calc(var(--gutter) * -1);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-bone) 10%, transparent);
+  }
+
+  /* Phones / tablets: the still sits above the copy and fades into the page. */
+  .hero__stage { position: relative; aspect-ratio: 390 / 440; background: var(--color-soot); overflow: hidden; }
+  @media (min-width: 600px) { .hero__stage { aspect-ratio: 834 / 640; } }
+  .hero__stage picture { display: block; width: 100%; height: 100%; }
+  .hero__stage img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+  .hero__stage::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 18%;
+    background: linear-gradient(180deg, transparent, var(--color-soot));
+    pointer-events: none;
+  }
+  .hero__annotations { display: none; }
+
+  .hero__copy { position: relative; padding: 4px var(--gutter) 40px; }
+
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 14px;
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-ash);
+  }
+  .eyebrow__mark { width: 6px; height: 6px; background: var(--color-vermilion); flex: none; }
+  @media (min-width: 600px) { .eyebrow { font-size: 0.6875rem; margin-bottom: 20px; } .eyebrow__mark { width: 8px; height: 8px; } }
+
+  .hero h1 {
+    font-size: clamp(52px, 16.9vw, 66px);
+    line-height: 0.86;
+    letter-spacing: 0;
+  }
+  .hero .h1-line { display: block; white-space: nowrap; }
+  @media (min-width: 600px) {
+    .hero h1 { font-size: clamp(72px, 12.5vw, 104px); white-space: nowrap; }
+    .hero .h1-line { display: inline; }
+  }
+
+  .hero .lead {
+    margin: 16px 0 0;
+    max-width: 460px;
+    font-size: 1rem;
+    line-height: 1.5;
+    font-weight: 380;
+  }
+  @media (min-width: 600px) { .hero .lead { margin-top: 24px; max-width: 560px; font-size: 1.1875rem; } }
+
+  .hero__cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+  .hero__cta .button { flex: 1 1 auto; justify-content: center; }
+  .hero__cta .button--ghost { flex: 0 0 auto; }
+  @media (min-width: 600px) { .hero__cta { gap: 12px; margin-top: 28px; } .hero__cta .button { flex: 0 0 auto; } }
+
+  .button { gap: 10px; }
+  .button--ghost {
+    background: transparent;
+    color: var(--color-bone);
+    font-weight: 400;
+    border: 1px solid color-mix(in srgb, var(--color-bone) 30%, transparent);
+  }
+  .button--ghost:hover { color: var(--color-tungsten); }
+  .button:not(.button--ghost):hover { background: var(--color-tungsten); color: var(--color-soot); }
+
+  /* Chapter index + scroll cue */
+  .hero__foot { display: none; }
+  .hero__foot ol {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .hero__foot a { color: var(--color-graphite); text-decoration: none; }
+  .hero__foot a:hover { color: var(--color-tungsten); }
+  .hero__foot a[aria-current] { color: var(--color-bone); }
+  .hero__cue { display: none; }
+
+  @media (min-width: 600px) {
+    .hero__foot { display: block; margin: 0 var(--gutter) 32px; padding-top: 16px; border-top: 1px solid color-mix(in srgb, var(--color-bone) 12%, transparent); }
+    .hero__foot ol { justify-content: space-between; flex-wrap: nowrap; }
+    .hero__foot a { display: inline-flex; align-items: center; min-height: 44px; }
+  }
+
+  /* Phone landscape (short and wide): still on the left, copy on the right, all visible without scrolling. */
+  @media (min-width: 600px) and (max-width: 1023px) and (max-height: 500px) {
+    .hero { display: grid; grid-template-columns: 55% 1fr; min-height: calc(100svh - var(--header-h)); }
+    .hero__stage { aspect-ratio: auto; }
+    .hero__stage::after { inset: 0 0 0 auto; width: 25%; height: auto; background: linear-gradient(270deg, var(--color-soot), transparent); }
+    .hero__copy { align-self: center; padding: 12px var(--gutter) 12px 8px; }
+    .hero .eyebrow { margin-bottom: 10px; }
+    .hero h1 { font-size: clamp(36px, 5.2vw, 52px); white-space: nowrap; }
+    .hero .h1-line { display: inline; }
+    .hero .lead { margin-top: 10px; font-size: 0.875rem; }
+    .hero__cta { margin-top: 14px; }
+    .hero__foot { display: none; }
+  }
+
+  /* Desktop: full-bleed still, copy on the left over a soot gradient, annotations registered to the scene. */
+  @media (min-width: 1024px) {
+    /* The scene runs under the header (as in the approved board), so annotations register at 1440×900. */
+    .hero { margin-top: calc(var(--header-h) * -1); min-height: max(700px, 100svh); }
+    .hero__stage { position: absolute; inset: 0; aspect-ratio: auto; }
+    .hero__stage::after {
+      inset: 0 auto 0 0;
+      width: 55%;
+      height: auto;
+      background: linear-gradient(90deg, rgb(13 12 10 / 0.92) 0%, rgb(13 12 10 / 0.55) 60%, transparent 100%);
+    }
+    /* Bottom-anchored, so the scene's lower edge (table, labels) keeps its distance from the chapter index. */
+    .hero__stage img { object-position: 50% 100%; }
+    .hero__annotations {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .hero__annotations text { fill: var(--color-ash); font-family: var(--font-mono); letter-spacing: 1.3px; }
+
+    .hero__copy { max-width: 700px; padding: clamp(120px, calc(var(--header-h) + 9vh), 176px) var(--gutter) 0; }
+    .hero h1 { font-size: clamp(104px, 10.3vw, 176px); line-height: 0.84; letter-spacing: -0.01em; white-space: normal; }
+    .hero .h1-line { display: block; }
+    .hero .lead { margin-top: 36px; font-size: 1.25rem; max-width: 460px; }
+    .hero__cta { margin-top: 36px; }
+
+    .hero__foot { position: absolute; inset: auto var(--gutter) 40px; margin: 0; padding: 0; border: 0; display: flex; align-items: flex-end; justify-content: space-between; }
+    .hero__foot ol { flex-wrap: wrap; gap: 8px 24px; font-size: 0.6875rem; }
+    .hero__foot a { min-height: 0; }
+    .hero__cue {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin: 0;
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--color-graphite);
+    }
+    .hero__cue-line { width: 1px; height: 36px; background: var(--color-bone); opacity: 0.4; }
+  }
+
+  /* The labels are registered to the 1440×900 composition: show them only where they provably fit
+     (aspect 8:5 to 9:5, at least 1200px wide). Elsewhere they are simply omitted. */
+  @media (min-width: 1200px) and (min-aspect-ratio: 8/5) and (max-aspect-ratio: 9/5) {
+    .hero__annotations { display: block; }
+  }
+}

@@ -18,6 +18,8 @@ Decisions locked for this stage:
 | 9 | Hosting | Vercel, static output, custom domain |
 | 10 | Test hardware | Victus (RTX 2050 + Radeon 760M), i5-4210U with HD Graphics 4400 (8 GB), low-end Android to be confirmed |
 
+**Decision update 2026-11-12 — vanilla "islands", React deferred.** Choosing for the widest compatibility and the smallest download: the HTML is prerendered by React at *build time* only. Pages ship **no React**: the one script every page loads (`src/client/main.ts`) is plain TypeScript (≈ 0.1 KB gzip today, target ≤ 15 KB). React, three.js and R3F load only inside the deferred 3D stage, and only on devices that pass the WebGL2 probe. Interactive UI (menu, accordions, quality control) is small vanilla controllers over the prerendered markup, and every control works as plain HTML first. Consequences: initial JS gate 70 → 25 KB (real target ≤ 15 KB), deferred gate 300 → 365 KB (React moved there), build target ES2020, no hydration step, enforced by boundary rule R5.
+
 **Core principle: T3 is the baseline, and T1/T2 are progressive enhancement.**
 Every page first paints as prerendered HTML with T3 stills. WebGL is only attempted after first paint, and only once a WebGL2 probe succeeds. If the probe fails, nothing 3D is ever downloaded. The HD 4400 is never assumed to support WebGL2: the probe decides on the real OS and browser.
 
@@ -50,10 +52,11 @@ portfolio/
 │  │  ├─ projects/<id>.ts         # station copy + full 8-chapter case study + architecture graph
 │  │  ├─ experience.ts · toolkit.ts · about.ts
 │  │  └─ routes.ts                # route table: path, title, description, OG image, template
+│  ├─ client/
+│  │  └─ main.ts                  # the ONE script every page loads: vanilla TS, no React/three (rule R5)
 │  ├─ entries/
-│  │  ├─ studio.client.tsx        # hydrateRoot for index.html
-│  │  ├─ case.client.tsx          # hydrateRoot for /work/*
-│  │  └─ server.tsx               # SSR entry used only at build time by the prerender step
+│  │  ├─ server.tsx               # SSR entry used only at build time by the prerender step
+│  │  └─ dev.client.tsx           # `vite dev` only: renders the React tree client-side; stripped from builds
 │  ├─ pages/
 │  │  ├─ StudioPage.tsx           # composes chapters 00–08
 │  │  └─ CaseStudyPage.tsx        # 8-chapter template driven by content/projects/<id>
@@ -104,6 +107,7 @@ portfolio/
 ```
 
 **Hard boundaries, enforced by lint rules and import checks:**
+- `src/client/` never imports React, three or `stage/` statically (R5); it may `import()` the stage once.
 - `chapters/`, `components/` and `pages/` never import `three`, `@react-three/fiber` or anything under `stage/`.
 - `stage/` is reached only through one `import()` in `StageHost`.
 - `motion/` and `quality/` never import React or three, so they unit-test without a DOM or GPU.
@@ -112,7 +116,7 @@ portfolio/
 
 | Package | Kind | Why |
 |---|---|---|
-| react, react-dom | runtime | UI, hydration |
+| react, react-dom | build-time SSR now; runtime only inside the deferred 3D stage | Prerender the HTML (no React in initial page JS) |
 | three | runtime (deferred) | Renderer. GLTFLoader, MeshoptDecoder and KTX2Loader come from `three/examples` |
 | @react-three/fiber | runtime (deferred) | Declarative scene (your decision #4) |
 | vite, @vitejs/plugin-react, typescript, @types/react, @types/react-dom, @types/three | dev | Build, Fast Refresh, types |
@@ -197,7 +201,7 @@ Hero (plus a foreground layer) · 4 worlds × 3 shots · state variants (Gesture
   2. `vite build --ssr src/entries/server.tsx`: a Node bundle of the same React tree.
   3. `scripts/prerender.mjs` renders each route with `react-dom/server`, injects the result into its template, and writes the per-route `<title>`, meta description, canonical URL, Open Graph and Twitter tags (JPEG OG image), plus JSON-LD `Person` on `/` (job title marked provisional).
   4. It also writes `sitemap.xml` and `robots.txt`.
-- **Hydration:** `hydrateRoot` hydrates the prerendered HTML. The 3D stage is never server-rendered: `StageHost` renders nothing on the server and mounts only on the client, after the gate (§4).
+- **No hydration:** the prerendered HTML is final. `src/client/main.ts` attaches small vanilla controllers to it. React runs in the browser only inside the deferred 3D stage, which is never server-rendered: it mounts on the client after the gate (§4).
 - **Works without JavaScript:** all text, links, navigation and T3 stills. Only the interactions need JS.
 - **Inline `<head>` script (< 0.5 KB):** sets `data-motion="static"` on `<html>` for reduced motion and Save-Data before first paint, so CSS never animates for those visitors.
 - **Case study → studio:** the "Back" link points to `/#<station>`, and a cold hash load opens that chapter at its rest pose. The browser Back button relies on the back/forward cache, so no `unload` handlers are allowed. On `pageshow` with `persisted`, the scene is invalidated once.
@@ -217,7 +221,7 @@ Hero (plus a foreground layer) · 4 worlds × 3 shots · state variants (Gesture
 
 ### 4.1 First load (home page)
 1. **Paint:** prerendered HTML, CSS and fonts, plus the hero T3 still (`fetchpriority="high"`, preloaded). This is the LCP. First view ≤ 350 KB.
-2. **Hydrate:** initial JS ≤ 70 KB gzip.
+2. **Enhance:** `src/client/main.ts` runs (initial JS ≤ 25 KB gate, ≈ 15 KB target).
 3. **Gate:** if `data-motion="static"`, **stop here**. The visitor stays on T3 permanently, and nothing 3D is requested.
 4. **Probe:** after `load` and an idle callback (or a `setTimeout` fallback). See §5. If it fails, **stop**: T3, with no 3D download.
 5. **Fetch in parallel, at low priority:** the stage chunk (three + R3F + scene code), the studio GLB, studio textures for the chosen tier, and the transcoder (T1 only).
@@ -315,6 +319,10 @@ Hero (plus a foreground layer) · 4 worlds × 3 shots · state variants (Gesture
 | M9 | Full QA (Stage 06), then launch | — |
 
 We start with M0–M2 only.
+
+**Status**
+- **M0** — done 2026-11-11.
+- **M1** — built 2026-11-12: header (dial, nav, quality control, mobile menu), hero at 390 / 834 / 1440, phone-landscape layout, JS-off and reduced-motion paths, vanilla controllers, quality store with opt-in persistence. Hero stills are **placeholder SVGs** generated from the approved plate (`scripts/gen-placeholder-stills.mjs`); Blender renders replace them in M2. Quality choices are stored but have no effect until M2 builds the live scene. Not yet done from the M1 exit criteria: Lighthouse and throttled LCP (needs `@lhci/cli`; local unthrottled LCP/CLS are measured in the e2e tests), axe audit (needs `@axe-core/playwright`), Firefox and WebKit runs.
 
 ---
 

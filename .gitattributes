@@ -1,0 +1,10 @@
+# Same bytes on Windows and Ubuntu: LF everywhere (the CSP hash of the inline head gate depends on it).
+* text=auto eol=lf
+*.woff2 binary
+*.png binary
+*.jpg binary
+*.avif binary
+*.webp binary
+*.glb binary
+*.ktx2 binary
+*.pdf binary

@@ -1,24 +1,13 @@
 import { chapters, type Chapter } from '../content/chapters';
 import { projectById } from '../content/projects';
-import { site } from '../content/site';
 import { FactText } from '../components/Fact';
 import { Scaffold } from '../components/Scaffold';
 import { SiteHeader } from '../components/SiteHeader';
 import { SkipLink } from '../components/SkipLink';
+import { Hero } from '../chapters/Hero';
 
 function ChapterBody({ chapter }: { chapter: Chapter }) {
   const headingId = `h-${chapter.id}`;
-
-  if (chapter.kind === 'hero') {
-    return (
-      <>
-        <h1 id={headingId}>{site.name.value}</h1>
-        <p className="lead">
-          <FactText id="site.positioning" fact={site.positioning} />
-        </p>
-      </>
-    );
-  }
 
   if (chapter.kind === 'station' && chapter.projectId) {
     const p = projectById(chapter.projectId);
@@ -49,7 +38,8 @@ export function StudioPage() {
       <SkipLink />
       <SiteHeader />
       <main id="main" tabIndex={-1}>
-        {chapters.map((chapter) => (
+        <Hero />
+        {chapters.filter((c) => c.kind !== 'hero').map((chapter) => (
           <section key={chapter.id} id={chapter.id} aria-labelledby={`h-${chapter.id}`} className="chapter">
             <p className="chapter-label">
               {chapter.number} — {chapter.label}

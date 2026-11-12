@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "./fonts.css";
 @import "./base.css";
+@import "./header.css";
+@import "./hero.css";
 
 /* Design tokens — Stage 02 System board. Exposed as Tailwind utilities (bg-soot, text-bone, font-mono …). */
 @theme {

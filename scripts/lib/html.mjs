@@ -32,6 +32,7 @@ export function initialAssets(html) {
   const scripts = [];
   const styles = [];
   const fonts = [];
+  const images = [];
   let inlineScriptBytes = 0;
 
   for (const tag of html.match(/<script\b[^>]*>/gi) ?? []) {
@@ -52,8 +53,9 @@ export function initialAssets(html) {
     if (rel === 'modulepreload') scripts.push(href);
     else if (rel === 'stylesheet') styles.push(href);
     else if (rel === 'preload' && attr(tag, 'as') === 'font') fonts.push(href);
+    else if (rel === 'preload' && attr(tag, 'as') === 'image') images.push(href);
   }
-  return { scripts: [...new Set(scripts)], styles: [...new Set(styles)], fonts: [...new Set(fonts)], inlineScriptBytes };
+  return { scripts: [...new Set(scripts)], styles: [...new Set(styles)], fonts: [...new Set(fonts)], images: [...new Set(images)], inlineScriptBytes };
 }
 
 export const readDist = (distDir, url) => readFileSync(join(distDir, url.replace(/^\//, '')));
